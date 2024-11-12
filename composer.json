@@ -11,6 +11,7 @@
         "doctrine/doctrine-bundle": "^2.13",
         "doctrine/doctrine-migrations-bundle": "^3.3",
         "doctrine/orm": "^3.3",
+        "easycorp/easyadmin-bundle": "^4.14",
         "nesbot/carbon": "^3.8",
         "symfony/console": "7.1.*",
         "symfony/dotenv": "7.1.*",
@@ -67,5 +68,9 @@
             "allow-contrib": false,
             "require": "7.1.*"
         }
+    },
+    "require-dev": {
+        "squizlabs/php_codesniffer": "^3.11",
+        "symfony/maker-bundle": "^1.61"
     }
 }

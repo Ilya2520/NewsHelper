@@ -3,3 +3,13 @@ controllers:
         path: ../src/Controller/
         namespace: App\Controller
     type: attribute
+
+api_news_list:
+    path: /news/list
+    controller: App\Controller\Api\NewsController::listNews
+    methods: [GET]
+
+api_news_view:
+    path: /news/{id}
+    controller: App\Controller\Api\NewsController::viewNews
+    methods: [GET]
