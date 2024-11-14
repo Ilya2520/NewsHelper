@@ -29,6 +29,9 @@ class News
     #[ORM\ManyToOne]
     private ?Category $category = null;
 
+    #[ORM\Column(length: 255, unique:true)]
+    private ?string $link = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -90,6 +93,18 @@ class News
     public function setCategory(?Category $category): static
     {
         $this->category = $category;
+
+        return $this;
+    }
+
+    public function getLink(): ?string
+    {
+        return $this->link;
+    }
+
+    public function setLink(string $link): static
+    {
+        $this->link = $link;
 
         return $this;
     }

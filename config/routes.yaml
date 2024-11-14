@@ -1,15 +1,14 @@
 controllers:
     resource:
-        path: ../src/Controller/
-        namespace: App\Controller
+        path: ../src/Controller/Admin
+        namespace: App\Controller\Admin
     type: attribute
-
-api_news_list:
-    path: /news/list
-    controller: App\Controller\Api\NewsController::listNews
-    methods: [GET]
-
-api_news_view:
-    path: /news/{id}
-    controller: App\Controller\Api\NewsController::viewNews
-    methods: [GET]
+api:
+    resource:
+        path: ../src/Controller/Api
+        namespace: App\Controller\Api
+    type: attribute
+    prefix: /api
+api_doc:
+    path: /api/doc
+    controller: nelmio_api_doc.controller.swagger_ui

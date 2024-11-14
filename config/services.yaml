@@ -12,6 +12,10 @@ services:
             - '../src/Kernel.php'
     App\Controller\Api\NewsController:
         tags: [ 'controller.service_arguments' ]
+    App\Controller\Api\SourceController:
+        tags: [ 'controller.service_arguments' ]
+    App\Controller\Api\CategoryController:
+        tags: [ 'controller.service_arguments' ]
     App\Storage\NewsStorage:
         arguments:
             $newsService: '@App\Service\NewsService'

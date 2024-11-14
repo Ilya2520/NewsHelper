@@ -38,4 +38,23 @@ class NewsCache implements NewsCacheInterface
     {
         $item->expiresAfter(3600);
     }
+    
+    public function invalidateCacheById(int $id): void
+    {
+        $this->cache->delete('news_' . $id);
+    }
+    
+    public function invalidateCacheByPattern(string $pattern): void
+    {
+        foreach ($this->cache->getKeys() as $key) {
+            if (fnmatch($pattern, $key)) {
+                $this->cache->delete($key);
+            }
+        }
+    }
+
+    public function invalidateNewsCache(): void
+    {
+        $this->cache->invalidateTags(['news']);
+    }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Storage;
 
+use App\Entity\News;
 use App\Service\NewsService;
 
 class NewsStorage
@@ -26,12 +27,32 @@ class NewsStorage
         });
     }
     
-    public function getNewsById(int $id): array
+    public function getNewsById(int $id): string
     {
         $cacheKey = $this->newsCache->getNewsByIdCacheKey($id);
         
         return $this->newsCache->getFromCache($cacheKey, function () use ($id) {
             return $this->newsService->getNewsById($id);
         });
+    }
+    
+    public function createOrUpdateNews(array $newsData): ?News
+    {
+        $news = $this->newsService->createOrUpdateNews($newsData);
+        
+        if ($news !== null) {
+            $this->newsCache->invalidateCacheByPattern('news_list_*');
+            $this->newsCache->invalidateCacheById($news['id']);
+        }
+        
+        return $news;
+    }
+    
+    public function deleteNews(int $id): void
+    {
+        $this->newsService->deleteNews($id);
+        
+        $this->newsCache->invalidateCacheByPattern('news_list_*');
+        $this->newsCache->invalidateCacheById($id);
     }
 }

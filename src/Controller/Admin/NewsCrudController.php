@@ -13,6 +13,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextEditorField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
+use EasyCorp\Bundle\EasyAdminBundle\Field\UrlField;
 
 class NewsCrudController extends AbstractCrudController
 {
@@ -38,6 +39,7 @@ class NewsCrudController extends AbstractCrudController
             TextEditorField::new('content', 'Контент'),
             AssociationField::new('category', 'Категория'),
             AssociationField::new('source', 'Источник'),
+            UrlField::new('link', 'Ссылка'),
             DateTimeField::new('publishedAt', 'Дата публикации')->setFormat('short', 'short'),
         ];
     }
