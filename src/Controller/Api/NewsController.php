@@ -132,10 +132,10 @@ class NewsController
     )]
     public function createNews(Request $request): JsonResponse
     {
-        $newsData = $request->request->all();
+        $data = $request->toArray();
         
         try {
-            $newNews = $this->newsStorage->createNews($newsData);
+            $newNews = $this->newsStorage->createNews($data);
             
             return $newNews !== null
                 ? new JsonResponse($newNews, Response::HTTP_CREATED)
@@ -214,7 +214,7 @@ class NewsController
             )
         ],
         responses: [
-            new OA\Response(response: 200, description: "Deleted"),
+            new OA\Response(response: 204, description: "Deleted"),
             new OA\Response(response: 404, description: "Not Found")
         ]
     )]
