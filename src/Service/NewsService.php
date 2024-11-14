@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Entity\Category;
 use App\Entity\News;
-use App\Entity\Source;
-use App\Repository\CategoryRepository;
 use App\Repository\NewsRepository;
-use App\Repository\SourceRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
@@ -19,226 +15,193 @@ class NewsService
 {
     private const CHUNK_SIZE = 150;
     private NewsRepository $newsRepository;
-    private CategoryRepository $categoryRepository;
-    private SourceRepository $sourceRepository;
+    private CategoryService $categoryService;
+    private SourceService $sourceService;
     private EntityManagerInterface $entityManager;
     
     public function __construct(
         NewsRepository $newsRepository,
-        CategoryRepository $categoryRepository,
-        SourceRepository $sourceRepository,
+        CategoryService $categoryService,
+        SourceService $sourceService,
         EntityManagerInterface $entityManager
     ) {
         $this->newsRepository = $newsRepository;
-        $this->categoryRepository = $categoryRepository;
-        $this->sourceRepository = $sourceRepository;
+        $this->categoryService = $categoryService;
+        $this->sourceService = $sourceService;
         $this->entityManager = $entityManager;
     }
     
-    public function getNewsList($fromDate, $toDate, $page = 1, $limit = 10): string
+    /**
+     * @param $fromDate
+     * @param $toDate
+     * @param int $page
+     * @param int $limit
+     *
+     * @return string
+     */
+    public function getNewsList($fromDate, $toDate, int $page = 1, int $limit = 10): string
     {
         $offset = ($page - 1) * $limit;
         $newsList = new ArrayCollection();
         
         $chunk = $this->newsRepository->getNewsByDateRange($fromDate, $toDate, self::CHUNK_SIZE, $offset);
-
+        
+        /** @var News $news */
         foreach ($chunk as $news) {
-            $newsList[] = $this->toArray($news);
+            $newsList[] = $news->toArray();
         }
         
         return json_encode($newsList->toArray(), JSON_UNESCAPED_UNICODE);
     }
     
+    /**
+     * @param int $id
+     *
+     * @return string
+     */
     public function getNewsById(int $id): string
     {
         $news = $this->newsRepository->find($id);
         
-        if (!$news) {
+        if ($news === null) {
             throw new \InvalidArgumentException("News with ID $id not found");
         }
         
-        return json_encode($this->toArray($news), JSON_UNESCAPED_UNICODE);
+        return json_encode($news->toArray(), JSON_UNESCAPED_UNICODE);
     }
     
     /**
      * @param array $data
      *
      * @return News|null
+     * @throws Exception
      */
-    public function createOrUpdateNews(array $data): ?News
+    public function createNews(array $data): ?News
     {
-        $news = $this->fromArray($data);
+        $news = $this->buildNewsFromArray($data);
         
-        if ($news !== null) {
+        try {
             $this->save($news);
             
             return $news;
+        } catch (InvalidArgumentException $e) {
+            throw new InvalidArgumentException('Invalid data provided for creating news: ' . $e->getMessage());
         }
-        
-        return null;
     }
     
-    private function findOrCreateCategory(?string $categoryName): ?Category
+    /**
+     * @param array $data
+     *
+     * @return News|null
+     * @throws Exception
+     */
+    public function updateNews(array $data): ?News
     {
-        $category = $this->categoryRepository->findOneBy(['name' => $categoryName]);
+        $news = $this->newsRepository->find($data['id']);
         
-        if ($category === null && $categoryName !== null) {
-            $category = new Category();
-            $category->setName($categoryName);
-            
-            $this->entityManager->persist($category);
-            $this->entityManager->flush();
+        if ($news === null) {
+            throw new InvalidArgumentException("News with ID {$data['id']} not found for update.");
         }
+        $this->buildNewsFromArray($data, $news);
         
-        return $category;
+        try {
+            $this->entityManager->flush();;
+            
+            return $news;
+        } catch (InvalidArgumentException $e) {
+            throw new InvalidArgumentException('Invalid data provided for updating news: ' . $e->getMessage());
+        }
     }
     
-    private function findOrCreateSource(?string $sourceName, ?string $sourceUrl): ?Source
-    {
-        $source = $this->sourceRepository->findOneBy(['name' => $sourceName, 'rssUrl' => $sourceUrl]);
-        
-        if ($source === null && $sourceName !== null && $sourceUrl !== null) {
-            $source = new Source();
-            $source->setName($sourceName);
-            $source->setRssUrl($sourceUrl);
-            
-            $this->entityManager->persist($source);
-            $this->entityManager->flush();
-        }
-        
-        return $source;
-    }
-    
+    /**
+     * @param int $id
+     *
+     * @return void
+     */
     public function deleteNews(int $id): void
     {
         $news = $this->newsRepository->find($id);
         
-        if ($news) {
-            $this->entityManager->remove($news);
-            $this->entityManager->flush();
-        }
-    }
-    
-    public function createCategory(array $data): ?Category
-    {
-        if (empty($data['name'])) {
-            return null;
+        if ($news === null) {
+            throw new InvalidArgumentException("News with ID $id not found for deletion.");
         }
         
-        $category = new Category();
-        $category->setName($data['name']);
-        $this->entityManager->persist($category);
+        $this->entityManager->remove($news);
         $this->entityManager->flush();
-        
-        return $category;
     }
     
-    public function updateCategory(array $data): ?Category
-    {
-        $category = $this->categoryRepository->find($data['id']);
-        if (!$category || empty($data['name'])) {
-            return null;
-        }
-        
-        $category->setName($data['name']);
-        $this->entityManager->flush();
-        
-        return $category;
-    }
-    
-    public function deleteCategory(int $id): void
-    {
-        $category = $this->categoryRepository->find($id);
-        if ($category) {
-            $this->entityManager->remove($category);
-            $this->entityManager->flush();
-        }
-    }
-    
-    public function createSource(array $data): ?Source
-    {
-        if (empty($data['name']) || empty($data['rssUrl'])) {
-            return null;
-        }
-        
-        $source = new Source();
-        $source->setName($data['name']);
-        $source->setRssUrl($data['rssUrl']);
-        $this->entityManager->persist($source);
-        $this->entityManager->flush();
-        
-        return $source;
-    }
-    
-    public function updateSource(array $data): ?Source
-    {
-        $source = $this->sourceRepository->find($data['id']);
-        if (!$source || empty($data['name']) || empty($data['rssUrl'])) {
-            return null;
-        }
-        
-        $source->setName($data['name']);
-        $source->setRssUrl($data['rssUrl']);
-        $this->entityManager->flush();
-        
-        return $source;
-    }
-    
-    public function deleteSource(int $id): void
-    {
-        $source = $this->sourceRepository->find($id);
-        if ($source) {
-            $this->entityManager->remove($source);
-            $this->entityManager->flush();
-        }
-    }
-    
+    /**
+     * @param News $news
+     *
+     * @return void
+     */
     public function save(News $news): void
     {
+        $existingNews = $this->newsRepository->findOneBy(['link' => $news->getLink()]);
+        if ($existingNews !== null) {
+            throw new InvalidArgumentException("News with the same link already exists.");
+        }
+        
+        //id не определен на данном этапе, тк нет записи в бд
+        if (in_array(null, array_values(array_filter($news->toArray(), function($key) {
+            return $key !== 'id';
+        }, ARRAY_FILTER_USE_KEY)), true)) {
+            throw new InvalidArgumentException("Missing required fields.");
+        }
+        
         $this->entityManager->persist($news);
         $this->entityManager->flush();
     }
     
     /**
+     * Builds a News entity from the provided data.
+     *
+     * @param array $data
+     * @param News|null $newsToUpdate
+     *
+     * @return News
+     * @throws Exception
      */
-    public function fromArray(array $data): ?News
+    public function buildNewsFromArray(array $data, ?News $newsToUpdate = null): News
     {
-        $news = isset($data['id']) ? $this->newsRepository->find($data['id']) : new News();
+        $news = $newsToUpdate ?? new News();
         
-        !isset($data['title']) ?: $news->setTitle((string)$data['title']);
-        !isset($data['content']) ?: $news->setContent((string)$data['content']);
-        !isset($data['publishedAt']) ?: $news->setPublishedAt(new \DateTime($data['publishedAt']));
-        
-        if (!isset($data['link'])) {
-            return null;
+        if (isset($data['title'])) {
+            $news->setTitle((string)$data['title']);
         }
-        $news->setLink((string)$data['link']);
         
-        $category = $this->findOrCreateCategory($data['category'] ?? null);
-        if ($category === null) {
-            return null;
+        if (isset($data['content'])) {
+            $news->setContent((string)$data['content']);
         }
-        $news->setCategory($category);
         
-        $source = $this->findOrCreateSource($data['sourceName'] ?? null, $data['sourceUrl'] ?? null);
-        if ($source === null) {
-            return null;
+        if (isset($data['publishedAt'])) {
+            $publishedAt = $data['publishedAt'] instanceof \DateTime
+                ? $data['publishedAt']
+                : new \DateTime($data['publishedAt']);
+            $news->setPublishedAt($publishedAt);
         }
-        $news->setSource($source);
+        
+        if (isset($data['link'])) {
+            $news->setLink((string)$data['link']);
+        }
+        
+        if ($newsToUpdate === null || isset($data['category'])) {
+            $category = $this->categoryService->findOrCreateCategory($data['category'] ?? null);
+            if ($category !== null) {
+                $news->setCategory($category);
+            }
+        }
+        
+        if ($newsToUpdate === null || (isset($data['sourceName']) && isset($data['sourceUrl']))) {
+            $source = $this->sourceService->findOrCreateSource(
+                $data['sourceName'] ?? null,
+                $data['sourceUrl'] ?? null
+            );
+            if ($source !== null) {
+                $news->setSource($source);
+            }
+        }
         
         return $news;
-    }
-    
-    private function toArray(News $news): array
-    {
-        return [
-            'id' => $news->getId(),
-            'title' => $news->getTitle(),
-            'content' => $news->getContent(),
-            'category' => $news->getCategory()->getName(),
-            'link' => $news->getLink(),
-            'source' => $news->getSource()->getName(),
-            'publishedAt' => $news->getPublishedAt()->format('Y-m-d H:i:s'),
-        ];
     }
 }

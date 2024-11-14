@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
-use App\Service\NewsService;
+use App\Service\CategoryService;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -14,11 +14,40 @@ use Symfony\Component\Routing\Annotation\Route;
 #[Route('/category')]
 class CategoryController
 {
-    private NewsService $newsService;
+    private CategoryService $categoryService;
     
-    public function __construct(NewsService $newsService)
+    public function __construct(CategoryService $categoryService)
     {
-        $this->newsService = $newsService;
+        $this->categoryService = $categoryService;
+    }
+    
+    #[Route('/', name: 'category_list', methods: ['GET'])]
+    #[OA\Get(
+        path: "/api/category/",
+        description: "Get list of all categories",
+        summary: "Get all categories",
+        tags: ["Категории"],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: "List of categories",
+                content: new OA\JsonContent(
+                    type: "array",
+                    items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: "id", type: "integer"),
+                            new OA\Property(property: "name", type: "string")
+                        ]
+                    )
+                )
+            )
+        ]
+    )]
+    public function getAllCategories(): JsonResponse
+    {
+        $categories = $this->categoryService->getAllCategories();
+        
+        return new JsonResponse($categories, Response::HTTP_OK);
     }
     
     #[Route('/', name: 'category_create', methods: ['POST'])]
@@ -38,11 +67,22 @@ class CategoryController
     public function createCategory(Request $request): JsonResponse
     {
         $data = $request->toArray();
-        $category = $this->newsService->createCategory($data);
-        
-        return $category
-            ? new JsonResponse($category, Response::HTTP_CREATED)
-            : new JsonResponse(['error' => 'Invalid data'], Response::HTTP_BAD_REQUEST);
+        try {
+            $category = $this->categoryService->createCategory($data);
+            return new JsonResponse($category, Response::HTTP_CREATED);
+        } catch (\InvalidArgumentException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], Response::HTTP_BAD_REQUEST);
+        } catch (\RuntimeException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (\Exception $exception) {
+            return new JsonResponse(
+                [
+                    'error' => 'Unexpected error occurred',
+                    'message' => $exception->getMessage(),
+                ],
+                Response::HTTP_INTERNAL_SERVER_ERROR
+            );
+        }
     }
     
     #[Route('/{id}', name: 'category_update', methods: ['PATCH'])]
@@ -63,11 +103,22 @@ class CategoryController
     {
         $data = $request->toArray();
         $data['id'] = $id;
-        $updatedCategory = $this->newsService->updateCategory($data);
-        
-        return $updatedCategory
-            ? new JsonResponse($updatedCategory, Response::HTTP_OK)
-            : new JsonResponse(['error' => 'Category not found'], Response::HTTP_NOT_FOUND);
+        try {
+            $updatedCategory = $this->categoryService->updateCategory($data);
+            return new JsonResponse($updatedCategory, Response::HTTP_OK);
+        } catch (\InvalidArgumentException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], Response::HTTP_BAD_REQUEST);
+        } catch (\RuntimeException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (\Exception $exception) {
+            return new JsonResponse(
+                [
+                    'error' => 'Unexpected error occurred',
+                    'message' => $exception->getMessage(),
+                ],
+                Response::HTTP_INTERNAL_SERVER_ERROR
+            );
+        }
     }
     
     #[Route('/{id}', name: 'category_delete', methods: ['DELETE'])]
@@ -92,8 +143,21 @@ class CategoryController
     )]
     public function deleteCategory(int $id): JsonResponse
     {
-        $this->newsService->deleteCategory($id);
-        
-        return new JsonResponse(['status' => 'deleted']);
+        try {
+            $this->categoryService->deleteCategory($id);
+            return new JsonResponse(['status' => 'deleted'], Response::HTTP_OK);
+        } catch (\InvalidArgumentException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], Response::HTTP_BAD_REQUEST);
+        } catch (\RuntimeException $exception) {
+            return new JsonResponse(['error' => $exception->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+        } catch (\Exception $exception) {
+            return new JsonResponse(
+                [
+                    'error' => 'Unexpected error occurred',
+                    'message' => $exception->getMessage(),
+                ],
+                Response::HTTP_INTERNAL_SERVER_ERROR
+            );
+        }
     }
 }

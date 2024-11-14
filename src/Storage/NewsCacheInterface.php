@@ -15,4 +15,6 @@ interface NewsCacheInterface
     public function getFromCache(string $cacheKey, callable $callback);
     
     public function setCacheExpiration(ItemInterface $item): void;
+    
+    public function invalidateCacheByTags(array $tags): bool;
 }

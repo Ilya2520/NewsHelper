@@ -4,21 +4,52 @@ declare(strict_types=1);
 
 namespace App\Controller\Api;
 
-use App\Service\NewsService;
+use App\Service\SourceService;
 use OpenApi\Attributes as OA;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use InvalidArgumentException;
 
 #[Route('/source')]
 class SourceController
 {
-    private NewsService $newsService;
+    private SourceService $sourceService;
     
-    public function __construct(NewsService $newsService)
+    public function __construct(SourceService $sourceService)
     {
-        $this->newsService = $newsService;
+        $this->sourceService = $sourceService;
+    }
+    
+    #[Route('/', name: 'source_list', methods: ['GET'])]
+    #[OA\Get(
+        path: "/api/source/",
+        description: "Get list of all sources",
+        summary: "Get all sources",
+        tags: ["Источники"],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: "List of sources",
+                content: new OA\JsonContent(
+                    type: "array",
+                    items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: "id", type: "integer"),
+                            new OA\Property(property: "name", type: "string"),
+                            new OA\Property(property: "rssUrl", type: "string")
+                        ]
+                    )
+                )
+            )
+        ]
+    )]
+    public function getAllSources(): JsonResponse
+    {
+        $sources = $this->sourceService->getAllSources();
+        
+        return new JsonResponse($sources, Response::HTTP_OK);
     }
     
     #[Route('/', name: 'source_create', methods: ['POST'])]
@@ -39,11 +70,23 @@ class SourceController
     public function createSource(Request $request): JsonResponse
     {
         $data = $request->toArray();
-        $source = $this->newsService->createSource($data);
         
-        return $source
-            ? new JsonResponse($source, Response::HTTP_CREATED)
-            : new JsonResponse(['error' => 'Invalid data'], Response::HTTP_BAD_REQUEST);
+        try {
+            $source = $this->sourceService->createSource($data);
+            
+            return $source
+                ? new JsonResponse($source, Response::HTTP_CREATED)
+                : new JsonResponse(['error' => 'Invalid data'], Response::HTTP_BAD_REQUEST);
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        } catch (\Exception $e) {
+            return new JsonResponse(
+                [
+                    'error' => 'An error occurred while creating the source',
+                    'message' => $e->getMessage(),
+                ],
+                Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
     
     #[Route('/{id}', name: 'source_update', methods: ['PATCH'])]
@@ -65,11 +108,23 @@ class SourceController
     {
         $data = $request->toArray();
         $data['id'] = $id;
-        $updatedSource = $this->newsService->updateSource($data);
         
-        return $updatedSource
-            ? new JsonResponse($updatedSource, Response::HTTP_OK)
-            : new JsonResponse(['error' => 'Source not found'], Response::HTTP_NOT_FOUND);
+        try {
+            $updatedSource = $this->sourceService->updateSource($data);
+            
+            return $updatedSource
+                ? new JsonResponse($updatedSource, Response::HTTP_OK)
+                : new JsonResponse(['error' => 'Source not found'], Response::HTTP_NOT_FOUND);
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        } catch (\Exception $e) {
+            return new JsonResponse(
+                [
+                    'error' => 'An error occurred while creating the source',
+                    'message' => $e->getMessage(),
+                ],
+                Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
     
     #[Route('/{id}', name: 'source_delete', methods: ['DELETE'])]
@@ -94,8 +149,17 @@ class SourceController
     )]
     public function deleteSource(int $id): JsonResponse
     {
-        $this->newsService->deleteSource($id);
-        
-        return new JsonResponse(['status' => 'deleted']);
+        try {
+            $this->sourceService->deleteSource($id);
+            
+            return new JsonResponse(['status' => 'deleted'], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            return new JsonResponse(
+                [
+                    'error' => 'An error occurred while creating the source',
+                    'message' => $e->getMessage(),
+                ],
+                Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 }

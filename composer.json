@@ -6,6 +6,7 @@
     "require": {
         "php": ">=8.2",
         "ext-ctype": "*",
+        "ext-dom": "*",
         "ext-iconv": "*",
         "ext-simplexml": "*",
         "doctrine/annotations": "*",
@@ -17,9 +18,11 @@
         "nelmio/api-doc-bundle": "*",
         "nesbot/carbon": "^3.8",
         "symfony/console": "7.1.*",
+        "symfony/dom-crawler": "7.1.*",
         "symfony/dotenv": "7.1.*",
         "symfony/flex": "^2",
         "symfony/framework-bundle": "7.1.*",
+        "symfony/monolog-bundle": "^3.10",
         "symfony/runtime": "7.1.*",
         "symfony/yaml": "7.1.*"
     },

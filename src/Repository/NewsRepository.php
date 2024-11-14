@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\News;
-use App\Entity\Source;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -32,13 +31,20 @@ class NewsRepository extends ServiceEntityRepository
             ->getResult();
     }
     
-    public function countNewsBySource(Source $source): int
+    public function getNewsCountsForAllSources(): array
     {
-        return $this->createQueryBuilder('n')
-            ->select('count(n.id)')
-            ->where('n.source = :source')
-            ->setParameter('source', $source)
-            ->getQuery()
-            ->getSingleScalarResult();
+        $query = $this->createQueryBuilder('n')
+            ->select('IDENTITY(n.source) as sourceId, COUNT(n.id) as newsCount')
+            ->groupBy('n.source')
+            ->getQuery();
+        
+        $results = $query->getResult();
+        
+        $counts = [];
+        foreach ($results as $result) {
+            $counts[$result['sourceId']] = $result['newsCount'];
+        }
+        
+        return $counts;
     }
 }

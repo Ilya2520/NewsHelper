@@ -6,6 +6,8 @@ namespace App\Storage;
 
 use App\Entity\News;
 use App\Service\NewsService;
+use Exception;
+use Psr\Cache\InvalidArgumentException;
 
 class NewsStorage
 {
@@ -33,26 +35,50 @@ class NewsStorage
         
         return $this->newsCache->getFromCache($cacheKey, function () use ($id) {
             return $this->newsService->getNewsById($id);
-        });
+        }, $id);
+        
     }
     
-    public function createOrUpdateNews(array $newsData): ?News
+    /**
+     * @throws Exception
+     * @throws InvalidArgumentException
+     */
+    public function createNews(array $newsData): ?News
     {
-        $news = $this->newsService->createOrUpdateNews($newsData);
+        $news = $this->newsService->createNews($newsData);
         
         if ($news !== null) {
-            $this->newsCache->invalidateCacheByPattern('news_list_*');
-            $this->newsCache->invalidateCacheById($news['id']);
+            $this->newsCache->invalidateCacheByTags(['news']);
+            $this->newsCache->invalidateCacheById($news->getId());
         }
         
         return $news;
     }
     
+    /**
+     * @throws Exception
+     * @throws InvalidArgumentException
+     */
+    public function updateNews(array $newsData): ?News
+    {
+        $news = $this->newsService->updateNews($newsData);
+        
+        if ($news !== null) {
+            $this->newsCache->invalidateCacheByTags(['news']);
+            $this->newsCache->invalidateCacheById($news->getId());
+        }
+        
+        return $news;
+    }
+    
+    /**
+     * @throws InvalidArgumentException
+     */
     public function deleteNews(int $id): void
     {
         $this->newsService->deleteNews($id);
         
-        $this->newsCache->invalidateCacheByPattern('news_list_*');
+        $this->newsCache->invalidateCacheByTags(['news']);
         $this->newsCache->invalidateCacheById($id);
     }
 }

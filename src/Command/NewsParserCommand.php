@@ -4,46 +4,105 @@ declare(strict_types=1);
 
 namespace App\Command;
 
-use App\Entity\News;
-use App\Entity\Source;
-use App\Parser\LentaRuParser;
-use App\Parser\OtherParser;
-use App\Parser\RbcParser;
-use App\Parser\RiaNewsParser;
-use App\Service\NewsService;
-use App\Parser\AbstractNewsParser;
-use App\Storage\NewsStorage;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Factory\ParserFactory;
+use App\Parser\BaseNewsParser;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
+#[AsCommand(name: 'app:parse-news')]
 class NewsParserCommand extends Command
 {
-    protected static $defaultName = 'app:parse-news';
-    private EntityManagerInterface $entityManager;
-    private NewsStorage $newsStorage;
+    public const RIA = 'ria';
+    public const RBC = 'rbc';
+    public const LENTA = 'lenta';
+    public const ADVANCED = 'advanced';
+    public const ALLOWED_PARSERS = [
+        self::RBC,
+        self::LENTA,
+        self::RIA,
+    ];
+    private ParserFactory $parserFactory;
     
-    public function __construct(EntityManagerInterface $entityManager, NewsStorage $newsStorage)
+    
+    public function __construct(ParserFactory $parserFactory)
     {
         parent::__construct();
-        $this->entityManager = $entityManager;
-        $this->newsStorage = $newsStorage;
+        $this->parserFactory = $parserFactory;
     }
     
     protected function configure(): void
     {
         $this
             ->setDescription('Parses news from configured sources.')
-            ->setHelp('This command allows you to parse news from sources specified in the database.')
+            ->setHelp('This command allows you to parse news from sources in the database.')
             ->addOption(
                 'source',
                 null,
                 InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY,
-                'Specify the sources to parse (by name or ID)',
+                sprintf(
+                    'Specify the sources to parse by name, allowed parsers:%s, advanced parser',
+                    implode(',', self::ALLOWED_PARSERS )
+                ),
                 []
+            )
+            ->addOption(
+                'limit',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Limit to parse',
+                []
+            )
+            ->addOption(
+                'sourceName',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Specify the Source name for advanced parser'
+            )
+            ->addOption(
+                'rssUrl',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Specify the RSS feed URL for custom parsers'
+            )
+            ->addOption(
+                'titleTag',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Specify the title tag name for RSS items'
+            )
+            ->addOption(
+                'categoryTag',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Specify the category tag name for RSS items'
+            )
+            ->addOption(
+                'dateTag',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Specify the publication date tag name for RSS items'
+            )
+            ->addOption(
+                'descriptionTag',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Specify the description tag name for RSS items'
+            )
+            ->addOption(
+                'linkTag',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Specify the link tag name for RSS items'
+            )
+            ->addOption(
+                'descriptionPattern',
+                null,
+                InputOption::VALUE_OPTIONAL,
+                'Specify the description pattern'
             );
     }
     
@@ -51,33 +110,42 @@ class NewsParserCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
         
-        $sources = $this->getSourcesFromOption($input);
+        $sources = $input->getOption('source') ?? self::ALLOWED_PARSERS;
+        
+        $limit = $input->getOption('limit');
         
         if (empty($sources)) {
             $io->warning('No sources found to parse.');
+            
             return Command::FAILURE;
         }
         
         $io->title('Parsing news from sources');
         
         foreach ($sources as $source) {
-            $io->section('Parsing source: ' . $source->getName());
+            $io->section('Parsing source: ' . $source);
             
-            // Получаем соответствующий парсер для источника
-            $parser = $this->getParserForSource($source);
+            $parser = $this->parserFactory->createParser($source);
             
-            if (!$parser) {
-                $io->warning('No parser found for source: ' . $source->getName());
+            if ($parser === null) {
+                $io->warning('No parser found for source: ' . $source);
                 continue;
             }
             
-            // Получаем RSS ленту
             try {
+                if ($source === self::ADVANCED) {
+                    $this->setParserSettingsFromOptions($input, $parser);
+                }
+                
+                if ($limit !== null) {
+                    $parser->setMaxItems((int)$limit);
+                }
+                
                 $parsedNews = $parser->parse();
                 
-                $io->success('Successfully parsed news for source: ' . $source->getName());
+                $io->success('Successfully parsed news for source: ' . $source);
             } catch (\Exception $e) {
-                $io->error('Error parsing news for source: ' . $source->getName() . ' - ' . $e->getMessage());
+                $io->error('Error parsing news for source: ' . $source . ' - ' . $e->getMessage());
             }
         }
         
@@ -85,39 +153,46 @@ class NewsParserCommand extends Command
     }
     
     /**
-     * Получаем источники для парсинга на основе опции.
-     *
      * @param InputInterface $input
+     * @param BaseNewsParser $parser
      *
-     * @return Source[]
+     * @return void
+     * @throws \Exception
      */
-    private function getSourcesFromOption(InputInterface $input): array
+    protected function setParserSettingsFromOptions(InputInterface $input, BaseNewsParser $parser): void
     {
-        $sourceNames = $input->getOption('source');
+        $sourceName = $input->getOption('sourceName') ?? null;
+        $rssUrl = $input->getOption('rssUrl') ?? null;
+        $titleTag = $input->getOption('titleTag') ?? null;
+        $categoryTag = $input->getOption('categoryTag') ?? null;
+        $dateTag = $input->getOption('dateTag') ?? null;
+        $descriptionTag = $input->getOption('descriptionTag') ?? null;
+        $linkTag = $input->getOption('linkTag') ?? null;
+        $descriptionPattern = $input->getOption('descriptionTag') ?? null;
         
-        if (empty($sourceNames)) {
-            // Если опция не указана, парсим все источники
-            return $this->entityManager->getRepository(Source::class)->findAll();
+        if ($rssUrl === null || $sourceName === null) {
+            throw new \Exception('Parser must contain rssUrl and source name');
         }
         
-        // Если указаны имена источников, находим их по этим именам
-        return $this->entityManager->getRepository(Source::class)->findBy(['name' => $sourceNames]);
-    }
-    
-    /**
-     * Получаем парсер для источника.
-     *
-     * @param Source $source
-     *
-     * @return AbstractNewsParser|null
-     */
-    private function getParserForSource(Source $source): ?AbstractNewsParser
-    {
-        return match ($source->getName()) {
-            'rbc' => new RbcParser(),
-            'lenta' => new LentaRuParser(),
-            'ria' => new RiaNewsParser(),
-            default => new OtherParser($source->getName(), $source->getRssUrl()),
-        };
+        $parser->setRssUrl((string)$rssUrl);
+        $parser->setSourceName((string)$sourceName);
+        if ($titleTag !== null) {
+            $parser->setTitleTag((string)$titleTag);
+        }
+        if ($categoryTag !== null) {
+            $parser->setCategoryTag((string)$categoryTag);
+        }
+        if ($dateTag !== null) {
+            $parser->setDateTag((string)$dateTag);
+        }
+        if ($descriptionTag !== null) {
+            $parser->setDescriptionTag((string)$descriptionTag);
+        }
+        if ($linkTag !== null) {
+            $parser->setLinkTag((string)$linkTag);
+        }
+        if ($descriptionPattern !== null) {
+            $parser->getContentFetcher()->setDescriptionPattern((string)$descriptionPattern);
+        }
     }
 }

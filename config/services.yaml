@@ -1,5 +1,3 @@
-parameters:
-
 services:
     _defaults:
         autowire: true
@@ -16,7 +14,51 @@ services:
         tags: [ 'controller.service_arguments' ]
     App\Controller\Api\CategoryController:
         tags: [ 'controller.service_arguments' ]
+    cache.adapter.redis:
+        class: Symfony\Component\Cache\Adapter\RedisAdapter
+        factory: [ 'Symfony\Component\Cache\Adapter\RedisAdapter', 'createConnection' ]
+        arguments:
+            - '%env(REDIS_URL)%'
+    cache.adapter.tag_aware.redis:
+        class: Symfony\Component\Cache\Adapter\TagAwareAdapter
+        arguments:
+            - '@cache.adapter.redis'
+    App\Storage\NewsCache:
+        arguments:
+            $cache: '@cache.news'
     App\Storage\NewsStorage:
         arguments:
             $newsService: '@App\Service\NewsService'
             $newsCache: '@App\Storage\NewsCache'
+
+    App\Service\ContentFetcher:
+        arguments: [ ]
+
+    App\Parser\RbcParser:
+        arguments:
+            $newsStorage: '@App\Storage\NewsStorage'
+            $contentFetcher: '@App\Service\ContentFetcher'
+            $logger: '@logger'
+    App\Parser\AdvancedParser:
+        arguments:
+            $newsStorage: '@App\Storage\NewsStorage'
+            $contentFetcher: '@App\Service\ContentFetcher'
+            $logger: '@logger'
+    App\Parser\LentaRuParser:
+        arguments:
+            $newsStorage: '@App\Storage\NewsStorage'
+            $contentFetcher: '@App\Service\ContentFetcher'
+            $logger: '@logger'
+    App\Parser\RiaNewsParser:
+        arguments:
+            $newsStorage: '@App\Storage\NewsStorage'
+            $contentFetcher: '@App\Service\ContentFetcher'
+            $logger: '@logger'
+    App\Factory\ParserFactory:
+        arguments:
+            $rbcParser: '@App\Parser\RbcParser'
+            $lentaParser: '@App\Parser\LentaRuParser'
+            $riaParser: '@App\Parser\RiaNewsParser'
+            $advancedParser: '@App\Parser\AdvancedParser'
+
+parameters:

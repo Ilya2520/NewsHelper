@@ -15,7 +15,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
 
 class SourceCrudController extends AbstractCrudController
 {
-    private NewsRepository $newsRepository;
+    public NewsRepository $newsRepository;
     
     public function __construct(NewsRepository $newsRepository)
     {
@@ -27,6 +27,7 @@ class SourceCrudController extends AbstractCrudController
         return Source::class;
     }
     
+    
     public function configureCrud(Crud $crud): Crud
     {
         return $crud
@@ -36,13 +37,16 @@ class SourceCrudController extends AbstractCrudController
     
     public function configureFields(string $pageName): iterable
     {
+        $sourceCounts = $this->newsRepository->getNewsCountsForAllSources();
+        
         return [
             TextField::new('name', 'Название'),
             IntegerField::new('newsCount', 'Количество новостей')
                 ->setFormTypeOption('mapped', false)
                 ->setVirtual(true)
-                ->formatValue(function ($value, $entity) {
-                    return $this->newsRepository->countNewsBySource($entity);
+                ->formatValue(function ($value, $entity) use ($sourceCounts) {
+                    $entity->setNewsCount($sourceCounts[$entity->getId()] ?? 0);
+                    return $entity->getNewsCount();
                 }),
         ];
     }

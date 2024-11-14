@@ -16,8 +16,10 @@ class Source
     #[ORM\Column(length: 255)]
     private ?string $name = null;
 
-    #[ORM\Column(length: 255)]
+    #[ORM\Column(length: 255, unique: true)]
     private ?string $rssUrl = null;
+    
+    private ?int $newsCount = null;
 
     public function getId(): ?int
     {
@@ -48,6 +50,26 @@ class Source
         return $this;
     }
     
+    public function getNewsCount(): ?int
+    {
+        return $this->newsCount;
+    }
+    
+    public function setNewsCount(int $count): self
+    {
+        $this->newsCount = $count;
+        return $this;
+    }
+    
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'rssUrl' => $this->rssUrl,
+        ];
+    }
+
     public function __toString(): string
     {
         return $this->name;

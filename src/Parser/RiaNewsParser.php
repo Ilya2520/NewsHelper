@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Parser;
 
-class RiaNewsParser extends AbstractNewsParser
+use App\Service\ContentFetcher;
+use App\Storage\NewsStorage;
+use Psr\Log\LoggerInterface;
+
+class RiaNewsParser extends BaseNewsParser
 {
-    protected string $feedUrl = 'https://ria.ru/export/rss2/archive/index.xml';
+    protected string $rssUrl = 'https://ria.ru/export/rss2/archive/index.xml';
     protected string $sourceName = 'РИА-Новости';
     
-    public function __construct()
+    public function __construct(NewsStorage $newsStorage, ContentFetcher $contentFetcher, LoggerInterface $logger)
     {
-        parent::__construct();
+        parent::__construct($newsStorage, $contentFetcher, $logger);
         
         $this->setSourceName($this->sourceName);
-        $this->setFeedUrl($this->feedUrl);
+        $this->setRssUrl($this->rssUrl);
     }
 }

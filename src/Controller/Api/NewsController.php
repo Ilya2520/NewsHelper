@@ -6,6 +6,7 @@ namespace App\Controller\Api;
 
 use App\Storage\NewsStorage;
 use OpenApi\Attributes as OA;
+use Psr\Cache\InvalidArgumentException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -65,12 +66,15 @@ class NewsController
         
         try {
             $newsList = $this->newsStorage->getNewsList($fromDate, $toDate, $page, $limit);
-            
-            return (
-                new JsonResponse(json_decode($newsList), Response::HTTP_OK)
-            )->setEncodingOptions(JSON_UNESCAPED_UNICODE);
+            return (new JsonResponse(json_decode($newsList), Response::HTTP_OK))
+                ->setEncodingOptions(JSON_UNESCAPED_UNICODE);
         } catch (\InvalidArgumentException $e) {
             return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        } catch (\Exception $e) {
+            return new JsonResponse([
+                'error' => 'An error occurred while fetching the news list.',
+                'message' => $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
     
@@ -88,29 +92,17 @@ class NewsController
                 required: true,
                 schema: new OA\Schema(type: "integer")
             )
-        ],
-        responses: [
-            new OA\Response(
-                response: 200,
-                description: "Success",
-                content: new OA\JsonContent(properties: [
-                    new OA\Property(property: "id", type: "integer"),
-                    new OA\Property(property: "title", type: "string"),
-                    new OA\Property(property: "content", type: "string"),
-                    new OA\Property(property: "category", type: "string"),
-                    new OA\Property(property: "link", type: "string"),
-                    new OA\Property(property: "source", type: "string"),
-                    new OA\Property(property: "publishedAt", type: "string", format: "date-time"),
-                ])
-            ),
-            new OA\Response(response: 404, description: "Not Found")
         ]
     )]
     public function viewNews(int $id): JsonResponse
     {
-        $newsData = $this->newsStorage->getNewsById($id);
-        
-        return (new JsonResponse(json_decode($newsData)));
+        try {
+            $newsData = $this->newsStorage->getNewsById($id);
+            return new JsonResponse(json_decode($newsData));
+        } catch (\Exception $e) {
+            // Ошибка при получении новости
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_NOT_FOUND);
+        }
     }
     
     #[Route('/', name: 'news_create', methods: 'POST')]
@@ -141,11 +133,16 @@ class NewsController
     public function createNews(Request $request): JsonResponse
     {
         $newsData = $request->request->all();
-        $newNews = $this->newsStorage->createOrUpdateNews($newsData);
         
-        return $newNews !== null
-            ? new JsonResponse($newNews, Response::HTTP_CREATED, )
-            : new JsonResponse([], Response::HTTP_BAD_REQUEST);
+        try {
+            $newNews = $this->newsStorage->createNews($newsData);
+            
+            return $newNews !== null
+                ? new JsonResponse($newNews, Response::HTTP_CREATED)
+                : new JsonResponse([], Response::HTTP_BAD_REQUEST);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
     }
     
     #[Route('/{id}', name: 'news_update', methods: 'PATCH')]
@@ -185,12 +182,20 @@ class NewsController
     )]
     public function updateNews(int $id, Request $request): JsonResponse
     {
-        $newsData = array_merge(['id' => $id], $request->request->all());
-        $updatedNews = $this->newsStorage->createOrUpdateNews($newsData);
+        $data = $request->toArray();
+        $data['id'] = $id;
         
-        return $updatedNews !== null
-            ? new JsonResponse($updatedNews, Response::HTTP_OK)
-            : new JsonResponse([], Response::HTTP_BAD_REQUEST);
+        try {
+            $updatedNews = $this->newsStorage->updateNews($data);
+            
+            return $updatedNews !== null
+                ? new JsonResponse($updatedNews, Response::HTTP_OK)
+                : new JsonResponse([], Response::HTTP_BAD_REQUEST);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        } catch (InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
     
     #[Route('/{id}', name: 'news_delete', methods: ['DELETE'])]
@@ -213,11 +218,14 @@ class NewsController
             new OA\Response(response: 404, description: "Not Found")
         ]
     )]
-    #[Route('/{id}', name: 'news_delete', methods: 'DELETE')]
     public function deleteNews(int $id): JsonResponse
     {
-        $this->newsStorage->deleteNews($id);
-        
-        return new JsonResponse(['status' => 'deleted']);
+        try {
+            $this->newsStorage->deleteNews($id);
+            
+            return new JsonResponse([], Response::HTTP_NO_CONTENT);
+        } catch (\Exception $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
     }
 }

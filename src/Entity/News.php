@@ -108,4 +108,17 @@ class News
 
         return $this;
     }
+    
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->getId(),
+            'title' => $this->getTitle(),
+            'content' => $this->getContent(),
+            'category' => $this->getCategory()?->getName(),
+            'link' => $this->getLink(),
+            'source' => $this->getSource()?->getName(),
+            'publishedAt' => $this->getPublishedAt()?->format('Y-m-d H:i:s'),
+        ];
+    }
 }
